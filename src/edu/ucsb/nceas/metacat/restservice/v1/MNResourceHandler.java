@@ -478,13 +478,13 @@ public class MNResourceHandler extends D1ResourceHandler {
             token = TokenGenerator.getInstance().getJWT(userId, fullName);
 
             response.setStatus(200);
-            response.setContentType("text/plain");
+            setResponseContentType("text/plain");
             OutputStream out = response.getOutputStream();
             out.write(token.getBytes(MetaCatServlet.DEFAULT_ENCODING));
             out.close();
         } else {
             response.setStatus(401);
-            response.setContentType("text/plain");
+            setResponseContentType("text/plain");
             OutputStream out = response.getOutputStream();
             out.write("No session information found".getBytes(MetaCatServlet.DEFAULT_ENCODING));
             out.close();
@@ -503,7 +503,7 @@ public class MNResourceHandler extends D1ResourceHandler {
                 MNodeService mnode = MNodeService.getInstance(request);
                 mnode.setSession(session);
                 QueryEngineList qel = mnode.listQueryEngines();
-                response.setContentType("text/xml");
+                setResponseContentType("text/xml");
                 response.setStatus(200);
                 out = response.getOutputStream();
                 TypeMarshaller.marshalTypeToOutputStream(qel, out);
@@ -515,7 +515,7 @@ public class MNResourceHandler extends D1ResourceHandler {
 
                     // set the content-type if we have it from the implementation
                     if (stream instanceof ContentTypeInputStream) {
-                        response.setContentType(((ContentTypeInputStream) stream).getContentType());
+                        setResponseContentType(((ContentTypeInputStream) stream).getContentType());
                     }
                     response.setStatus(200);
                     out = response.getOutputStream();
@@ -525,7 +525,7 @@ public class MNResourceHandler extends D1ResourceHandler {
                     MNodeService mnode = MNodeService.getInstance(request);
                     mnode.setSession(session);
                     QueryEngineDescription qed = mnode.getQueryEngineDescription(engine);
-                    response.setContentType("text/xml");
+                    setResponseContentType("text/xml");
                     response.setStatus(200);
                     out = response.getOutputStream();
                     TypeMarshaller.marshalTypeToOutputStream(qed, out);
@@ -568,7 +568,7 @@ public class MNResourceHandler extends D1ResourceHandler {
 
                 // set the content-type if we have it from the implementation
                 if (stream instanceof ContentTypeInputStream) {
-                    response.setContentType(((ContentTypeInputStream) stream).getContentType());
+                    setResponseContentType(((ContentTypeInputStream) stream).getContentType());
                 }
                 response.setStatus(200);
                 out = response.getOutputStream();
@@ -717,7 +717,7 @@ public class MNResourceHandler extends D1ResourceHandler {
         // call the service
         Identifier identifier = MNodeService.getInstance(request).generateIdentifier(session, scheme, fragment);
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         OutputStream out = response.getOutputStream();
         TypeMarshaller.marshalTypeToOutputStream(identifier, out);
     }
@@ -746,7 +746,7 @@ public class MNResourceHandler extends D1ResourceHandler {
         }
         boolean result = MNodeService.getInstance(request).isAuthorized(session, pid, permission);
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
     }
 
@@ -907,7 +907,7 @@ public class MNResourceHandler extends D1ResourceHandler {
             // call the service
             dataBytes = MNodeService.getInstance(request).getReplica(session, pid);
 
-            response.setContentType("application/octet-stream");
+            setResponseContentType("application/octet-stream");
             response.setStatus(200);
             out = response.getOutputStream();
             // write the object to the output stream
@@ -937,7 +937,7 @@ public class MNResourceHandler extends D1ResourceHandler {
         
         Node n = MNodeService.getInstance(request).getCapabilities();
         
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         response.setStatus(200);
         TypeMarshaller.marshalTypeToOutputStream(n, response.getOutputStream());
 
@@ -958,7 +958,7 @@ public class MNResourceHandler extends D1ResourceHandler {
                                                 NotFound, NotImplemented, InvalidRequest
     {
 
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         Identifier id = new Identifier();
         id.setValue(pid);
@@ -1056,7 +1056,7 @@ public class MNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         TypeMarshaller.marshalTypeToOutputStream(log, out);
 
@@ -1098,7 +1098,7 @@ public class MNResourceHandler extends D1ResourceHandler {
             if (extension != null && filename != null && !filename.endsWith(extension)) {
                 filename = id.getValue() + extension;
             }
-            response.setContentType(mimeType);
+            setResponseContentType(mimeType);
             response.setHeader("Content-Disposition", ATTACHMENT + "; filename=\"" + filename+"\"");
             out = response.getOutputStream();  
             IOUtils.copyLarge(data, out);
@@ -1178,7 +1178,7 @@ public class MNResourceHandler extends D1ResourceHandler {
 
             out = response.getOutputStream();
             response.setStatus(200);
-            response.setContentType("text/xml");
+            setResponseContentType("text/xml");
             // Serialize and write it to the output stream
             TypeMarshaller.marshalTypeToOutputStream(ol, out);
 
@@ -1209,7 +1209,7 @@ public class MNResourceHandler extends D1ResourceHandler {
         String filename = pid.replaceAll("\\W", "_") + ".zip";
 
         response.setHeader("Content-Disposition", ATTACHMENT + "; filename=\"" + filename+"\"");
-        response.setContentType("application/zip");
+        setResponseContentType("application/zip");
         response.setStatus(200);
         OutputStream out = response.getOutputStream();
 
@@ -1228,7 +1228,7 @@ public class MNResourceHandler extends D1ResourceHandler {
         Identifier newIdentifier = MNodeService.getInstance(request).publish(session, originalIdentifier);
 
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         OutputStream out = response.getOutputStream();
 
         // write new identifier to the output stream
@@ -1255,7 +1255,7 @@ public class MNResourceHandler extends D1ResourceHandler {
         id.setValue(pid);
         SystemMetadata sysmeta = MNodeService.getInstance(request).getSystemMetadata(session, id);
 
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         response.setStatus(200);
         OutputStream out = response.getOutputStream();
         
@@ -1322,7 +1322,7 @@ public class MNResourceHandler extends D1ResourceHandler {
                 }
 
                 response.setStatus(200);
-                response.setContentType("text/xml");
+                setResponseContentType("text/xml");
                 OutputStream out = response.getOutputStream();
 
                 if (action.equals(FUNCTION_NAME_INSERT)) { 
@@ -1376,7 +1376,7 @@ public class MNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         Identifier id = new Identifier();
         id.setValue(pid);
@@ -1403,7 +1403,7 @@ public class MNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         Identifier id = new Identifier();
         id.setValue(pid);

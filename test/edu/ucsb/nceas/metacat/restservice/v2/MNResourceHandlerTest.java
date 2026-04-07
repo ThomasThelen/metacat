@@ -16,6 +16,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -447,6 +448,65 @@ public class MNResourceHandlerTest {
             request.setHeader("Range", null);
             assertNull(request.getHeader("Range"));
         }
+    }
+
+    /**
+     * Test that setResponseContentType adds charset for text-based content types.
+     * This addresses Issue #1102: HTTP response charset not included
+     */
+    @Test
+    public void testSetResponseContentTypeWithCharset() throws Exception {
+        // Test text/xml should get charset
+        MockHttpServletResponse mockResponse = new MockHttpServletResponse(request);
+        MNResourceHandler handler = new MNResourceHandler(request, mockResponse);
+        handler.setResponseContentType("text/xml");
+        assertTrue("text/xml should include charset", 
+            mockResponse.getContentType().contains("charset=UTF-8"));
+        assertEquals("text/xml; charset=UTF-8", mockResponse.getContentType());
+        
+        // Test text/csv should get charset
+        mockResponse = new MockHttpServletResponse(request);
+        handler = new MNResourceHandler(request, mockResponse);
+        handler.setResponseContentType("text/csv");
+        assertTrue("text/csv should include charset", 
+            mockResponse.getContentType().contains("charset=UTF-8"));
+        
+        // Test application/xml should get charset
+        mockResponse = new MockHttpServletResponse(request);
+        handler = new MNResourceHandler(request, mockResponse);
+        handler.setResponseContentType("application/xml");
+        assertTrue("application/xml should include charset", 
+            mockResponse.getContentType().contains("charset=UTF-8"));
+        
+        // Test application/json should get charset
+        mockResponse = new MockHttpServletResponse(request);
+        handler = new MNResourceHandler(request, mockResponse);
+        handler.setResponseContentType("application/json");
+        assertTrue("application/json should include charset", 
+            mockResponse.getContentType().contains("charset=UTF-8"));
+        
+        // Test application/zip should NOT get charset (binary format)
+        mockResponse = new MockHttpServletResponse(request);
+        handler = new MNResourceHandler(request, mockResponse);
+        handler.setResponseContentType("application/zip");
+        assertFalse("application/zip should NOT include charset", 
+            mockResponse.getContentType().contains("charset"));
+        assertEquals("application/zip", mockResponse.getContentType());
+        
+        // Test application/octet-stream should NOT get charset (binary format)
+        mockResponse = new MockHttpServletResponse(request);
+        handler = new MNResourceHandler(request, mockResponse);
+        handler.setResponseContentType("application/octet-stream");
+        assertFalse("application/octet-stream should NOT include charset", 
+            mockResponse.getContentType().contains("charset"));
+        
+        // Test that charset is not duplicated if already present
+        mockResponse = new MockHttpServletResponse(request);
+        handler = new MNResourceHandler(request, mockResponse);
+        handler.setResponseContentType("text/xml; charset=ISO-8859-1");
+        assertEquals("text/xml; charset=ISO-8859-1", mockResponse.getContentType());
+        assertFalse("Should not duplicate charset or add UTF-8", 
+            mockResponse.getContentType().contains("UTF-8"));
     }
 
     /**

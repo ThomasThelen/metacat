@@ -506,7 +506,7 @@ public class D1ResourceHandler {
         try {
             logMetacat.error("D1ResourceHandler: Printing error to servlet response: " + message);
             PrintWriter out = response.getWriter();
-            response.setContentType("text/xml");
+            setResponseContentType("text/xml");
             out.println("<?xml version=\"1.0\"?>");
             out.println("<error>");
             out.println(message);
@@ -524,7 +524,7 @@ public class D1ResourceHandler {
      */
     protected void serializeException(BaseException e, OutputStream out) {
         // TODO: Use content negotiation to determine which return format to use
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         response.setStatus(e.getCode());
         if (e instanceof NotFound || e instanceof NotAuthorized || e instanceof InvalidRequest
                                                                   || e instanceof InvalidToken) {
@@ -626,6 +626,37 @@ public class D1ResourceHandler {
                     session.setSubjectInfo(subjectInfo);
                 }
             }
+        }
+    }
+
+    /**
+     * Sets the Content-Type header with appropriate charset for text-based content types.
+     * This method automatically adds "; charset=UTF-8" to text-based MIME types if charset
+     * is not already specified, addressing Issue #1102.
+     * 
+     * @param mimeType the MIME type to set (e.g., "text/xml", "application/json")
+     */
+    protected void setResponseContentType(String mimeType) {
+        if (mimeType == null) {
+            mimeType = "application/octet-stream";
+        }
+        
+        // Check if charset is already specified
+        if (mimeType.toLowerCase().contains("charset")) {
+            setResponseContentType(mimeType);
+            return;
+        }
+        
+        // Add UTF-8 charset for text-based content types
+        String lowerMimeType = mimeType.toLowerCase();
+        if (lowerMimeType.startsWith("text/") || 
+            lowerMimeType.equals("application/xml") ||
+            lowerMimeType.equals("application/json") ||
+            lowerMimeType.contains("+xml") ||
+            lowerMimeType.contains("+json")) {
+            setResponseContentType(mimeType + "; charset=UTF-8");
+        } else {
+            setResponseContentType(mimeType);
         }
     }
 

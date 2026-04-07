@@ -500,7 +500,7 @@ public class CNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         TypeMarshaller.marshalTypeToOutputStream(log, out);
 
@@ -539,7 +539,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         if (extension != null && filename != null && !filename.endsWith(extension)) {
             filename = id.getValue() + extension;
         }
-        response.setContentType(mimeType);
+        setResponseContentType(mimeType);
         response.setHeader("Content-Disposition", ATTACHMENT + "; filename=" + filename);
 
         InputStream data = CNodeService.getInstance(request).get(session, id);
@@ -573,7 +573,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         SystemMetadata sysmeta = CNodeService.getInstance(request)
                 .getSystemMetadata(session, id);
 
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         response.setStatus(200);
         OutputStream out = response.getOutputStream();
 
@@ -639,7 +639,7 @@ public class CNResourceHandler extends D1ResourceHandler {
 
                     OutputStream out = response.getOutputStream();
                     response.setStatus(200);
-                    response.setContentType("text/xml");
+                    setResponseContentType("text/xml");
 
                     TypeMarshaller.marshalTypeToOutputStream(rId, out);
 
@@ -671,7 +671,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         // get the response output stream
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         // style the object with a processing directive
         String stylesheet = null;
@@ -696,7 +696,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         // get the response output stream
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         TypeMarshaller.marshalTypeToOutputStream(result, out);
 
@@ -714,7 +714,7 @@ public class CNResourceHandler extends D1ResourceHandler {
      */
     private void describeObject(String pid) throws InvalidToken, ServiceFailure, NotAuthorized, NotFound, NotImplemented, InvalidRequest
     {
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         Identifier id = new Identifier();
         id.setValue(pid);
@@ -758,7 +758,7 @@ public class CNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         Identifier id = new Identifier();
         id.setValue(pid);
@@ -785,7 +785,7 @@ public class CNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         Identifier id = new Identifier();
         id.setValue(pid);
@@ -824,7 +824,7 @@ public class CNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         TypeMarshaller.marshalTypeToOutputStream(objectFormat, out);
 
@@ -890,7 +890,7 @@ public class CNResourceHandler extends D1ResourceHandler {
             Identifier resultPid = CNodeService.getInstance(request).reserveIdentifier(session, pid);
             OutputStream out = response.getOutputStream();
             response.setStatus(200);
-            response.setContentType("text/xml");
+            setResponseContentType("text/xml");
             // send back the reserved pid
             TypeMarshaller.marshalTypeToOutputStream(resultPid, out);
 
@@ -930,7 +930,7 @@ public class CNResourceHandler extends D1ResourceHandler {
                 .resolve(session, pid);
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         TypeMarshaller.marshalTypeToOutputStream(locationList, out);
 
     }
@@ -1024,7 +1024,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         try {
             OutputStream out = response.getOutputStream();
             response.setStatus(200);
-            response.setContentType("text/xml");
+            setResponseContentType("text/xml");
             TypeMarshaller.marshalTypeToOutputStream(retPid, out);
 
         } catch (IOException e) {
@@ -1063,7 +1063,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         boolean result = CNodeService.getInstance(request).isAuthorized(
                 session, pid, Permission.convert(permission));
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
     }
 
@@ -1110,7 +1110,7 @@ public class CNResourceHandler extends D1ResourceHandler {
 
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         TypeMarshaller.marshalTypeToOutputStream(retGuid, out);
 
@@ -1246,7 +1246,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         // send it
         OutputStream out = response.getOutputStream();
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
 
         // style the object with a processing directive
         String stylesheet = null;
@@ -1302,7 +1302,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         result = CNodeService.getInstance(request).isNodeAuthorized(session, targetNodeSubject, identifier);
 
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
 
     }
@@ -1355,7 +1355,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         result = CNodeService.getInstance(request).setReplicationPolicy(
                 session, identifier, policy, serialVersion);
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
 
     }
@@ -1446,7 +1446,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         result = CNodeService.getInstance(request).setObsoletedBy(session,
             identifier, obsoletedByPid, serialVersion);
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
 
     }
@@ -1537,7 +1537,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         result = CNodeService.getInstance(request).deleteReplicationMetadata(
                 session, identifier, nodeId, serialVersion);
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
 
     }
@@ -1641,7 +1641,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         result = CNodeService.getInstance(request).setReplicationStatus(
                 session, identifier, targetNodeRef, status, failure);
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
 
     }
@@ -1694,7 +1694,7 @@ public class CNResourceHandler extends D1ResourceHandler {
         result = CNodeService.getInstance(request).updateReplicationMetadata(
                 session, identifier, replica, serialVersion);
         response.setStatus(200);
-        response.setContentType("text/xml");
+        setResponseContentType("text/xml");
         return result;
 
     }
