@@ -27,6 +27,7 @@
 package edu.ucsb.nceas.metacat.download;
 
 import edu.ucsb.nceas.metacat.DBTransform;
+import edu.ucsb.nceas.metacat.properties.PropertyService;
 import org.dataone.service.types.v1.Identifier;
 import org.dataone.service.types.v2.SystemMetadata;
 import org.dspace.foresite.ResourceMap;
@@ -36,6 +37,7 @@ import org.dataone.service.exceptions.NotFound;
 import org.dataone.service.exceptions.NotAuthorized;
 import org.dataone.service.exceptions.InvalidRequest;
 import org.dataone.service.exceptions.NotImplemented;
+import edu.ucsb.nceas.utilities.PropertyNotFoundException;
 
 import org.dataone.speedbagit.SpeedBagIt;
 import java.lang.NullPointerException;
@@ -120,7 +122,13 @@ public class PackageDownloaderV1 {
 	public void addSciPdf(InputStream metadataStream, SystemMetadata metadataSysMeta, Identifier metadataID) {
 		try {
 			// Set the properties for the XSLT transform
-			String format = "default";
+			String format;
+			try {
+				format = PropertyService.getProperty("application.default-style");
+			} catch (PropertyNotFoundException pnfe) {
+				logMetacat.warn("Could not find application.default-style property, using 'metacatui' as default", pnfe);
+				format = "metacatui";
+			}
 
 			DBTransform transformer = new DBTransform();
 			String documentContent = IOUtils.toString(metadataStream, "UTF-8");
@@ -162,9 +170,23 @@ public class PackageDownloaderV1 {
 			cssDir.mkdir();
 			File cssFile = new File(tmpDir, format + "/" + format + ".css");
 
-			// Write the CSS to the file
+			// Try to find skin-specific CSS, fall back to common EML CSS if not found
 			String originalCssPath = SystemUtil.getContextDir() + "/style/skins/" + format + "/" + format + ".css";
-			IOUtils.copy(new FileInputStream(originalCssPath), new FileOutputStream(cssFile));
+			File cssSourceFile = new File(originalCssPath);
+
+			// Fall back to common EML CSS if skin-specific CSS doesn't exist
+			if (!cssSourceFile.exists()) {
+				logMetacat.info("Skin-specific CSS not found at " + originalCssPath + ", falling back to common eml_xsl.css");
+				originalCssPath = SystemUtil.getContextDir() + "/style/common/eml_xsl.css";
+				cssSourceFile = new File(originalCssPath);
+			}
+
+			// Only copy CSS if the source file exists
+			if (cssSourceFile.exists()) {
+				IOUtils.copy(new FileInputStream(originalCssPath), new FileOutputStream(cssFile));
+			} else {
+				logMetacat.warn("No CSS file found for PDF generation, PDF may not be styled correctly");
+			}
 
 			// Create the pdf File that HtmlToPdf will write to
 			String pdfFileName = metadataID.getValue().replaceAll("[^a-zA-Z0-9\\-\\.]", "_") + "-METADATA.pdf";
