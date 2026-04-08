@@ -643,20 +643,20 @@ public class D1ResourceHandler {
         
         // Check if charset is already specified
         if (mimeType.toLowerCase().contains("charset")) {
-            setResponseContentType(mimeType);
+            response.setContentType(mimeType);
             return;
         }
-        
+
         // Add UTF-8 charset for text-based content types
         String lowerMimeType = mimeType.toLowerCase();
-        if (lowerMimeType.startsWith("text/") || 
+        if (lowerMimeType.startsWith("text/") ||
             lowerMimeType.equals("application/xml") ||
             lowerMimeType.equals("application/json") ||
             lowerMimeType.contains("+xml") ||
             lowerMimeType.contains("+json")) {
-            setResponseContentType(mimeType + "; charset=UTF-8");
+            response.setContentType(mimeType + "; charset=UTF-8");
         } else {
-            setResponseContentType(mimeType);
+            response.setContentType(mimeType);
         }
     }
 
