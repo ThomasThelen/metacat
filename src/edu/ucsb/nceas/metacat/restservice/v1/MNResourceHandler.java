@@ -60,10 +60,10 @@ import org.xml.sax.SAXException;
 import edu.ucsb.nceas.metacat.common.query.stream.ContentTypeInputStream;
 import edu.ucsb.nceas.metacat.dataone.D1AuthHelper;
 import edu.ucsb.nceas.metacat.dataone.v1.MNodeService;
+import edu.ucsb.nceas.metacat.download.PackageFilenameHelper;
 import edu.ucsb.nceas.metacat.properties.PropertyService;
 import edu.ucsb.nceas.metacat.restservice.D1ResourceHandler;
 import edu.ucsb.nceas.metacat.restservice.multipart.MultipartRequestWithSysmeta;
-
 import edu.ucsb.nceas.utilities.PropertyNotFoundException;
 import edu.ucsb.nceas.metacat.MetaCatServlet;
 import edu.ucsb.nceas.metacat.ReadOnlyChecker;
@@ -1200,19 +1200,16 @@ public class MNResourceHandler extends D1ResourceHandler {
      */
     protected void getPackage(String pid) throws InvalidToken, ServiceFailure, NotAuthorized,
                                             NotFound, NotImplemented, IOException, InvalidRequest {
-
         Identifier id = new Identifier();
         id.setValue(pid);
-        InputStream is = MNodeService.getInstance(request).getPackage(session, null, id);
-
-        //Use the pid as the file name prefix, replacing all non-word characters
-        String filename = pid.replaceAll("\\W", "_") + ".zip";
-
+        // Try to get user-friendly title-based filename
+        String filename = PackageFilenameHelper.getPackageFilename(pid);
         response.setHeader("Content-Disposition", ATTACHMENT + "; filename=\"" + filename+"\"");
         response.setContentType("application/zip");
         response.setStatus(200);
         OutputStream out = response.getOutputStream();
 
+        InputStream is = MNodeService.getInstance(request).getPackage(session, null, id);
         // write it to the output stream
         IOUtils.copyLarge(is, out);
    }

@@ -74,6 +74,7 @@ import edu.ucsb.nceas.metacat.common.query.stream.ContentTypeInputStream;
 import edu.ucsb.nceas.metacat.dataone.D1AuthHelper;
 import edu.ucsb.nceas.metacat.dataone.MNodeService;
 import edu.ucsb.nceas.metacat.doi.DOIException;
+import edu.ucsb.nceas.metacat.download.PackageFilenameHelper;
 import edu.ucsb.nceas.metacat.properties.PropertyService;
 import edu.ucsb.nceas.metacat.restservice.D1ResourceHandler;
 import edu.ucsb.nceas.metacat.restservice.multipart.MultipartRequestWithSysmeta;
@@ -1521,17 +1522,15 @@ public class MNResourceHandler extends D1ResourceHandler {
         }
         InputStream is = null;
         try {
-            is = MNodeService.getInstance(request).getPackage(session, formatId , id);
-
-            //Use the pid as the file name prefix, replacing all non-word characters
-            String filename = pid.replaceAll("\\W", "_") + ".zip";
-
+            // Try to get user-friendly title-based filename
+            String filename = PackageFilenameHelper.getPackageFilename(pid);
             response.setHeader("Content-Disposition", ATTACHMENT + "; filename=\"" + filename+"\"");
             response.setContentType("application/zip");
             response.setStatus(200);
             OutputStream out = response.getOutputStream();
 
             // write it to the output stream
+            is = MNodeService.getInstance(request).getPackage(session, formatId , id);
             IOUtils.copyLarge(is, out);
             IOUtils.closeQuietly(out);
             long end = System.currentTimeMillis();
@@ -1539,7 +1538,6 @@ public class MNResourceHandler extends D1ResourceHandler {
                                     + Settings.PERFORMANCELOG_GET_PACKAGE_METHOD
                                     + " Total getPackage method"
                                     + Settings.PERFORMANCELOG_DURATION + (end-start)/1000);
-
         } finally {
             IOUtils.closeQuietly(is);
         }
