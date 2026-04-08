@@ -2460,6 +2460,172 @@ public class MNodeServiceIT {
         }
 
         /**
+         * Test that a BagIt package can still be created when a package member
+         * has an invalid/unrecognized formatID in its system metadata.
+
+         */
+        @Test
+        public void testGetPackageBagIt10WithInvalidMemberFormatId() {
+            D1NodeServiceTest.printTestHeader("testGetPackageBagIt10WithInvalidMemberFormatId");
+            try {
+                // construct the ORE package
+                Identifier resourceMapId = new Identifier();
+                resourceMapId.setValue(
+                    "testBagIt10InvalidFmt." + System.currentTimeMillis());
+                Identifier metadataId = new Identifier();
+                metadataId.setValue(
+                    "doi://1234/DD/meta.1." + System.currentTimeMillis());
+                List<Identifier> dataIds = new ArrayList<>();
+                Identifier dataId = new Identifier();
+                dataId.setValue(
+                    "doi://1234/DD/data.1." + System.currentTimeMillis());
+                dataIds.add(dataId);
+                Map<Identifier, List<Identifier>> idMap = new HashMap<>();
+                idMap.put(metadataId, dataIds);
+                ResourceMapFactory rmf = ResourceMapFactory.getInstance();
+                ResourceMap resourceMap = rmf.createResourceMap(resourceMapId, idMap);
+                String rdfXml = ResourceMapFactory.getInstance()
+                    .serializeResourceMap(resourceMap);
+
+                Session session = d1NodeTest.getTestSession();
+
+                // Create the data object with an invalid/unrecognized formatID
+                InputStream dataObject = new ByteArrayInputStream(
+                    "data with bad format".getBytes(StandardCharsets.UTF_8));
+                SystemMetadata dataSysmeta = D1NodeServiceTest.createSystemMetadata(
+                    dataId, session.getSubject(), dataObject);
+                // Set an invalid formatID that won't be found in the ObjectFormatCache
+                ObjectFormatIdentifier invalidFormat = new ObjectFormatIdentifier();
+                invalidFormat.setValue("application/vnd.invalid-format-does-not-exist");
+                dataSysmeta.setFormatId(invalidFormat);
+                dataObject = new ByteArrayInputStream(
+                    "data with bad format".getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, dataId, dataObject, dataSysmeta);
+                String query = "q=id:" + "\"" + dataId.getValue() + "\"";
+                InputStream stream = MNodeService.getInstance(request)
+                    .query(session, "solr", query);
+                String resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                int account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request)
+                        .query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // Create the metadata object with a valid formatID
+                InputStream metadataObject = new ByteArrayInputStream(
+                    metadataId.getValue().getBytes(StandardCharsets.UTF_8));
+                SystemMetadata metaSysmeta = D1NodeServiceTest.createSystemMetadata(
+                    metadataId, session.getSubject(), metadataObject);
+                metadataObject = new ByteArrayInputStream(
+                    metadataId.getValue().getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, metadataId, metadataObject, metaSysmeta);
+                query = "q=id:" + "\"" + metadataId.getValue() + "\"";
+                stream = MNodeService.getInstance(request)
+                    .query(session, "solr", query);
+                resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request)
+                        .query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // Save the ORE resource map
+                InputStream oreObject = new ByteArrayInputStream(
+                    rdfXml.getBytes(StandardCharsets.UTF_8));
+                SystemMetadata oreSysmeta = D1NodeServiceTest.createSystemMetadata(
+                    resourceMapId, session.getSubject(), oreObject);
+                oreSysmeta.setFormatId(
+                    ObjectFormatCache.getInstance().getFormat(
+                        "http://www.openarchives.org/ore/terms").getFormatId());
+                oreObject = new ByteArrayInputStream(
+                    rdfXml.getBytes(StandardCharsets.UTF_8));
+                Identifier pid = d1NodeTest.mnCreate(
+                    session, resourceMapId, oreObject, oreSysmeta);
+                query = "q=id:" + resourceMapId.getValue();
+                stream = MNodeService.getInstance(request)
+                    .query(session, "solr", query);
+                resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request)
+                        .query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // Request the package in BagIt 1.0 format — should not throw
+                ObjectFormatIdentifier bagitFormat = new ObjectFormatIdentifier();
+                bagitFormat.setValue("application/bagit-1.0");
+                InputStream bagStream = MNodeService.getInstance(request)
+                    .getPackage(session, bagitFormat, pid);
+                assertNotNull("BagIt 1.0 package stream should not be null even with "
+                    + "an invalid member formatID", bagStream);
+
+                // Verify the zip is valid and contains the data file
+                File bagFile = File.createTempFile("bagit10-invalidfmt.", ".zip");
+                IOUtils.copy(bagStream, new FileOutputStream(bagFile));
+                ZipFile zipFile = new ZipFile(bagFile.getAbsolutePath());
+
+                boolean hasDataFile = false;
+                Enumeration<? extends ZipEntry> entries = zipFile.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    if (entry.getName().contains("/data/")) {
+                        hasDataFile = true;
+                        break;
+                    }
+                }
+                assertTrue("BagIt 1.0 package should still contain data files "
+                    + "even when a member has an invalid formatID", hasDataFile);
+
+                zipFile.close();
+                bagFile.delete();
+
+                // Also verify BagIt 0.97 handles the invalid formatID gracefully
+                ObjectFormatIdentifier bagit097Format = new ObjectFormatIdentifier();
+                bagit097Format.setValue("application/bagit-097");
+                InputStream bag097Stream = MNodeService.getInstance(request)
+                    .getPackage(session, bagit097Format, pid);
+                assertNotNull("BagIt 0.97 package stream should not be null even with "
+                    + "an invalid member formatID", bag097Stream);
+
+                File bag097File = File.createTempFile("bagit097-invalidfmt.", ".zip");
+                IOUtils.copy(bag097Stream, new FileOutputStream(bag097File));
+                ZipFile zip097File = new ZipFile(bag097File.getAbsolutePath());
+
+                boolean v097HasDataFile = false;
+                Enumeration<? extends ZipEntry> entries097 = zip097File.entries();
+                while (entries097.hasMoreElements()) {
+                    ZipEntry entry = entries097.nextElement();
+                    if (entry.getName().contains("/data/")) {
+                        v097HasDataFile = true;
+                        break;
+                    }
+                }
+                assertTrue("BagIt 0.97 package should still contain data files "
+                    + "even when a member has an invalid formatID", v097HasDataFile);
+
+                zip097File.close();
+                bag097File.delete();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Package creation should not fail due to an invalid member "
+                    + "formatID: " + e.getMessage());
+            }
+        }
+
+        /**
          * Test getting a known object
          */
         @Test

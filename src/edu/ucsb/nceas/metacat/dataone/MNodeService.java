@@ -2919,9 +2919,17 @@ public class MNodeService extends D1NodeService
                     //Get the system metadata for each item
                     SystemMetadata entrySysMeta = this.getSystemMetadata(session, entryPid);
 
-                    String objectFormatType =
-                        ObjectFormatCache.getInstance().getFormat(entrySysMeta.getFormatId())
-                            .getFormatType();
+                    String objectFormatType;
+                    try {
+                        objectFormatType =
+                            ObjectFormatCache.getInstance().getFormat(entrySysMeta.getFormatId())
+                                .getFormatType();
+                    } catch (NotFound e) {
+                        logMetacat.error(
+                            "Failed to find the format type for: "
+                                + entrySysMeta.getFormatId().getValue(), e);
+                        objectFormatType = "DATA";
+                    }
                     String fileName = null;
 
                     //Our default file name is just the ID + format type (e.g. walker.1.1-DATA)
