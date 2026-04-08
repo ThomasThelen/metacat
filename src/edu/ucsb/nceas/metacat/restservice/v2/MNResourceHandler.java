@@ -1532,7 +1532,6 @@ public class MNResourceHandler extends D1ResourceHandler {
             // write it to the output stream
             is = MNodeService.getInstance(request).getPackage(session, formatId , id);
             IOUtils.copyLarge(is, out);
-            IOUtils.closeQuietly(out);
             long end = System.currentTimeMillis();
             logMetacat.info(Settings.PERFORMANCELOG + pid
                                     + Settings.PERFORMANCELOG_GET_PACKAGE_METHOD
