@@ -126,7 +126,7 @@ public class D1RestServlet extends HttpServlet {
             if (!isMetacatConfigured) {
                 ServiceFailure error = new ServiceFailure("0000", "Metacat has not been configured"
                            + ". Please go to https://your-host/metacat/admin to configure it");
-                setResponseContentType("text/xml");
+                response.setContentType("text/xml; charset=UTF-8");
                 response.setStatus(error.getCode());
                 try (OutputStream out = response.getOutputStream()) {
                     IOUtils.write(error.serialize(BaseException.FMT_XML), out, "UTF-8");
