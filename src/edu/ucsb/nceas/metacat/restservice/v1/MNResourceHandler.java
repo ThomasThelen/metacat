@@ -1202,16 +1202,20 @@ public class MNResourceHandler extends D1ResourceHandler {
                                             NotFound, NotImplemented, IOException, InvalidRequest {
         Identifier id = new Identifier();
         id.setValue(pid);
-        // Try to get user-friendly title-based filename
-        String filename = PackageFilenameHelper.getPackageFilename(pid);
-        response.setHeader("Content-Disposition", ATTACHMENT + "; filename=\"" + filename+"\"");
-        response.setContentType("application/zip");
-        response.setStatus(200);
-        OutputStream out = response.getOutputStream();
-
         InputStream is = MNodeService.getInstance(request).getPackage(session, null, id);
-        // write it to the output stream
-        IOUtils.copyLarge(is, out);
+        try {
+            // Try to get user-friendly title-based filename
+            String filename = PackageFilenameHelper.getPackageFilename(pid);
+            response.setHeader("Content-Disposition", ATTACHMENT + "; filename=\"" + filename+"\"");
+            response.setContentType("application/zip");
+            response.setStatus(200);
+            OutputStream out = response.getOutputStream();
+
+            // write it to the output stream
+            IOUtils.copyLarge(is, out);
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
    }
 
     protected void publish(String pid) throws InvalidToken, ServiceFailure,
