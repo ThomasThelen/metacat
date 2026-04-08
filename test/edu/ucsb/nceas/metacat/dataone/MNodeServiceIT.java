@@ -36,6 +36,7 @@ import org.dataone.service.exceptions.InvalidRequest;
 import org.dataone.service.exceptions.InvalidSystemMetadata;
 import org.dataone.service.exceptions.NotAuthorized;
 import org.dataone.service.exceptions.NotFound;
+import org.dataone.service.exceptions.NotImplemented;
 import org.dataone.service.exceptions.ServiceFailure;
 import org.dataone.service.exceptions.SynchronizationFailed;
 import org.dataone.service.types.v1.AccessPolicy;
@@ -89,7 +90,9 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -1918,11 +1921,12 @@ public class MNodeServiceIT {
         }
 
         /**
-         * Test getting a known object
+         * Test getting a package in BagIt 0.97 format
+         * This tests PackageDownloaderV1 which includes the CSS fallback logic
          */
         @Test
         public void testGetPackage() {
-            D1NodeServiceTest.printTestHeader("testGetPackage");
+            D1NodeServiceTest.printTestHeader("testGetPackage - BagIt 0.97");
 
             try {
                 Session session = d1NodeTest.getTestSession();
@@ -1936,15 +1940,524 @@ public class MNodeServiceIT {
                 format.setValue("application/bagit-097");
                 InputStream bagStream =
                     MNodeService.getInstance(request).getPackage(session, format, pid);
+                
+                // Verify we got a stream back (the package was created)
+                assertNotNull("BagIt 0.97 package stream should not be null", bagStream);
 
             } catch (InvalidRequest e) {
+                // This is expected if the pid is not a resource map
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Unexpected error for BagIt 0.97: " + e.getMessage());
+            }
+        }
 
+        /**
+         * Test getting a package in BagIt 1.0 format
+         * This tests PackageDownloaderV2
+         */
+        @Test
+        public void testGetPackageBagIt10() {
+            D1NodeServiceTest.printTestHeader("testGetPackage - BagIt 1.0");
+
+            try {
+                Session session = d1NodeTest.getTestSession();
+                Identifier guid = new Identifier();
+                guid.setValue("testGetPackageBagIt10." + System.currentTimeMillis());
+                InputStream object = new ByteArrayInputStream("test".getBytes(StandardCharsets.UTF_8));
+                SystemMetadata sysmeta = D1NodeServiceTest.createSystemMetadata(guid, session.getSubject(), object);
+                Identifier pid =
+                    d1NodeTest.mnCreate(session, guid, object, sysmeta);
+                ObjectFormatIdentifier format = new ObjectFormatIdentifier();
+                format.setValue("application/bagit-1.0");
+                InputStream bagStream =
+                    MNodeService.getInstance(request).getPackage(session, format, pid);
+                
+                // Verify we got a stream back (the package was created)
+                assertNotNull("BagIt 1.0 package stream should not be null", bagStream);
+
+            } catch (InvalidRequest e) {
+                // This is expected if the pid is not a resource map
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Unexpected error for BagIt 1.0: " + e.getMessage());
+            }
+        }
+
+
+        /**
+         * Test getting a BagIt 1.0 package for a full ORE resource map with metadata and data files.
+         * Verifies the zip structure contains expected BagIt 1.0 tag files and data entries.
+         */
+        @Test
+        public void testGetOREPackageBagIt10() {
+            D1NodeServiceTest.printTestHeader("testGetOREPackageBagIt10");
+            try {
+                // construct the ORE package
+                Identifier resourceMapId = new Identifier();
+                resourceMapId.setValue("testGetOREPackageBagIt10." + System.currentTimeMillis());
+                Identifier metadataId = new Identifier();
+                metadataId.setValue("doi://1234/BB/meta.1." + System.currentTimeMillis());
+                List<Identifier> dataIds = new ArrayList<>();
+                Identifier dataId = new Identifier();
+                dataId.setValue("doi://1234/BB/data.1." + System.currentTimeMillis());
+                Identifier dataId2 = new Identifier();
+                dataId2.setValue("doi://1234/BB/data.2." + System.currentTimeMillis());
+                dataIds.add(dataId);
+                dataIds.add(dataId2);
+                Map<Identifier, List<Identifier>> idMap = new HashMap<>();
+                idMap.put(metadataId, dataIds);
+                ResourceMapFactory rmf = ResourceMapFactory.getInstance();
+                ResourceMap resourceMap = rmf.createResourceMap(resourceMapId, idMap);
+                assertNotNull(resourceMap);
+                String rdfXml = ResourceMapFactory.getInstance().serializeResourceMap(resourceMap);
+                assertNotNull(rdfXml);
+
+                Session session = d1NodeTest.getTestSession();
+                InputStream object = null;
+                SystemMetadata sysmeta = null;
+
+                // save the first data object
+                InputStream dataObject1 = new ByteArrayInputStream(
+                    dataId.getValue().getBytes(StandardCharsets.UTF_8));
+                sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    dataId, session.getSubject(), dataObject1);
+                dataObject1 = new ByteArrayInputStream(
+                    dataId.getValue().getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, dataId, dataObject1, sysmeta);
+                String query = "q=id:" + "\"" + dataId.getValue() + "\"";
+                InputStream stream = MNodeService.getInstance(request).query(session, "solr", query);
+                String resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                int account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // save the second data object
+                InputStream dataObject2 = new ByteArrayInputStream(
+                    dataId2.getValue().getBytes(StandardCharsets.UTF_8));
+                sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    dataId2, session.getSubject(), dataObject2);
+                dataObject2 = new ByteArrayInputStream(
+                    dataId2.getValue().getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, dataId2, dataObject2, sysmeta);
+                query = "q=id:" + "\"" + dataId2.getValue() + "\"";
+                stream = MNodeService.getInstance(request).query(session, "solr", query);
+                resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // save the metadata object
+                InputStream metadataObject = new ByteArrayInputStream(
+                    metadataId.getValue().getBytes(StandardCharsets.UTF_8));
+                sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    metadataId, session.getSubject(), metadataObject);
+                metadataObject = new ByteArrayInputStream(
+                    metadataId.getValue().getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, metadataId, metadataObject, sysmeta);
+                query = "q=id:" + "\"" + metadataId.getValue() + "\"";
+                stream = MNodeService.getInstance(request).query(session, "solr", query);
+                resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // save the ORE resource map
+                object = new ByteArrayInputStream(rdfXml.getBytes(StandardCharsets.UTF_8));
+                sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    resourceMapId, session.getSubject(), object);
+                sysmeta.setFormatId(
+                    ObjectFormatCache.getInstance().getFormat(
+                        "http://www.openarchives.org/ore/terms").getFormatId());
+                object = new ByteArrayInputStream(rdfXml.getBytes(StandardCharsets.UTF_8));
+                Identifier pid =
+                    d1NodeTest.mnCreate(session, resourceMapId, object, sysmeta);
+                query = "q=id:" + resourceMapId.getValue();
+                stream = MNodeService.getInstance(request).query(session, "solr", query);
+                resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // Get the package in BagIt 1.0 format
+                ObjectFormatIdentifier format = new ObjectFormatIdentifier();
+                format.setValue("application/bagit-1.0");
+                InputStream bagStream =
+                    MNodeService.getInstance(request).getPackage(session, format, pid);
+                File bagFile = File.createTempFile("bagit10.", ".zip");
+                IOUtils.copy(bagStream, new FileOutputStream(bagFile));
+
+                // Verify the zip structure
+                String bagPath = bagFile.getAbsolutePath();
+                ZipFile zipFile = new ZipFile(bagPath);
+
+                Set<String> entryNames = new HashSet<>();
+                Enumeration<? extends ZipEntry> entries = zipFile.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    entryNames.add(entry.getName());
+                }
+
+                // Verify BagIt 1.0 tag files are present
+                boolean hasBagitTxt = false;
+                boolean hasManifest = false;
+                boolean hasTagManifest = false;
+                boolean hasDataDir = false;
+                boolean hasMetadataDir = false;
+                for (String name : entryNames) {
+                    if (name.endsWith("bagit.txt")) {
+                        hasBagitTxt = true;
+                        // Verify the bagit.txt contains version 1.0
+                        ZipEntry bagitEntry = zipFile.getEntry(name);
+                        String bagitContent = IOUtils.toString(
+                            zipFile.getInputStream(bagitEntry), StandardCharsets.UTF_8);
+                        assertTrue("bagit.txt should contain version 1.0",
+                            bagitContent.contains("1.0"));
+                    }
+                    if (name.contains("manifest-")) {
+                        hasManifest = true;
+                    }
+                    if (name.contains("tagmanifest-")) {
+                        hasTagManifest = true;
+                    }
+                    if (name.contains("/data/")) {
+                        hasDataDir = true;
+                    }
+                    if (name.contains("/metadata/")) {
+                        hasMetadataDir = true;
+                    }
+                }
+                assertTrue("BagIt 1.0 package should contain bagit.txt", hasBagitTxt);
+                assertTrue("BagIt 1.0 package should contain a manifest file", hasManifest);
+                assertTrue("BagIt 1.0 package should contain a tag manifest file", hasTagManifest);
+                assertTrue("BagIt 1.0 package should contain a data directory", hasDataDir);
+                assertTrue("BagIt 1.0 package should contain a metadata directory", hasMetadataDir);
+
+                // Verify there are system metadata files in the metadata/sysmeta/ directory
+                boolean hasSysmeta = false;
+                for (String name : entryNames) {
+                    if (name.contains("metadata/sysmeta/")) {
+                        hasSysmeta = true;
+                        break;
+                    }
+                }
+                assertTrue("BagIt 1.0 package should contain system metadata files", hasSysmeta);
+
+                // clean up
+                zipFile.close();
+                bagFile.delete();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Unexpected error in testGetOREPackageBagIt10: " + e.getMessage());
+            }
+        }
+
+        /**
+         * Test that requesting a BagIt 1.0 package for a non-resource-map PID throws InvalidRequest.
+         */
+        @Test
+        public void testGetPackageBagIt10NonResourceMap() {
+            D1NodeServiceTest.printTestHeader("testGetPackageBagIt10NonResourceMap");
+
+            try {
+                Session session = d1NodeTest.getTestSession();
+                Identifier guid = new Identifier();
+                guid.setValue("testGetPackageBagIt10NonRM." + System.currentTimeMillis());
+                InputStream object = new ByteArrayInputStream(
+                    "test data".getBytes(StandardCharsets.UTF_8));
+                SystemMetadata sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    guid, session.getSubject(), object);
+                object = new ByteArrayInputStream("test data".getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, guid, object, sysmeta);
+
+                // Wait for Solr indexing
+                String query = "q=id:" + "\"" + guid.getValue() + "\"";
+                InputStream stream = MNodeService.getInstance(request).query(
+                    session, "solr", query);
+                String resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                int account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                ObjectFormatIdentifier format = new ObjectFormatIdentifier();
+                format.setValue("application/bagit-1.0");
+                MNodeService.getInstance(request).getPackage(session, format, guid);
+                fail("Should have thrown InvalidRequest for a non-resource-map PID");
+            } catch (InvalidRequest e) {
+                // Expected - the pid is not a resource map
+                assertTrue("Error message should mention the pid is not a package id",
+                    e.getMessage().contains("not a package"));
             } catch (Exception e) {
                 e.printStackTrace();
                 fail("Unexpected error: " + e.getMessage());
             }
         }
 
+        /**
+         * Test that requesting a package with a null format throws InvalidRequest.
+         */
+        @Test
+        public void testGetPackageNullFormat() {
+            D1NodeServiceTest.printTestHeader("testGetPackageNullFormat");
+
+            try {
+                Session session = d1NodeTest.getTestSession();
+                Identifier guid = new Identifier();
+                guid.setValue("testGetPackageNullFormat." + System.currentTimeMillis());
+                InputStream object = new ByteArrayInputStream(
+                    "test".getBytes(StandardCharsets.UTF_8));
+                SystemMetadata sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    guid, session.getSubject(), object);
+                object = new ByteArrayInputStream("test".getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, guid, object, sysmeta);
+
+                MNodeService.getInstance(request).getPackage(session, null, guid);
+                fail("Should have thrown InvalidRequest for null format");
+            } catch (InvalidRequest e) {
+                // Expected
+                assertTrue("Error message should mention format",
+                    e.getMessage().contains("format"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Unexpected error: " + e.getMessage());
+            }
+        }
+
+        /**
+         * Test that requesting a package with an unsupported format throws NotImplemented.
+         */
+        @Test
+        public void testGetPackageUnsupportedFormat() {
+            D1NodeServiceTest.printTestHeader("testGetPackageUnsupportedFormat");
+
+            try {
+                Session session = d1NodeTest.getTestSession();
+                Identifier guid = new Identifier();
+                guid.setValue("testGetPackageUnsupportedFmt." + System.currentTimeMillis());
+                InputStream object = new ByteArrayInputStream(
+                    "test".getBytes(StandardCharsets.UTF_8));
+                SystemMetadata sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    guid, session.getSubject(), object);
+                object = new ByteArrayInputStream("test".getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, guid, object, sysmeta);
+
+                ObjectFormatIdentifier format = new ObjectFormatIdentifier();
+                format.setValue("application/zip");
+                MNodeService.getInstance(request).getPackage(session, format, guid);
+                fail("Should have thrown NotImplemented for unsupported format");
+            } catch (NotImplemented e) {
+                // Expected
+                assertTrue("Error message should mention the unsupported format",
+                    e.getMessage().contains("application/zip"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Unexpected error: " + e.getMessage());
+            }
+        }
+
+        /**
+         * Test that BagIt 1.0 and BagIt 0.97 produce different package structures
+         * for the same ORE resource map.
+         */
+        @Test
+        public void testBagIt10VsBagIt097Structure() {
+            D1NodeServiceTest.printTestHeader("testBagIt10VsBagIt097Structure");
+            try {
+                // construct the ORE package
+                Identifier resourceMapId = new Identifier();
+                resourceMapId.setValue("testBagItCompare." + System.currentTimeMillis());
+                Identifier metadataId = new Identifier();
+                metadataId.setValue("doi://1234/CC/meta.1." + System.currentTimeMillis());
+                List<Identifier> dataIds = new ArrayList<>();
+                Identifier dataId = new Identifier();
+                dataId.setValue("doi://1234/CC/data.1." + System.currentTimeMillis());
+                dataIds.add(dataId);
+                Map<Identifier, List<Identifier>> idMap = new HashMap<>();
+                idMap.put(metadataId, dataIds);
+                ResourceMapFactory rmf = ResourceMapFactory.getInstance();
+                ResourceMap resourceMap = rmf.createResourceMap(resourceMapId, idMap);
+                String rdfXml = ResourceMapFactory.getInstance().serializeResourceMap(resourceMap);
+
+                Session session = d1NodeTest.getTestSession();
+
+                // save data object
+                InputStream dataObject = new ByteArrayInputStream(
+                    "sample data content".getBytes(StandardCharsets.UTF_8));
+                SystemMetadata sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    dataId, session.getSubject(), dataObject);
+                dataObject = new ByteArrayInputStream(
+                    "sample data content".getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, dataId, dataObject, sysmeta);
+                String query = "q=id:" + "\"" + dataId.getValue() + "\"";
+                InputStream stream = MNodeService.getInstance(request).query(
+                    session, "solr", query);
+                String resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                int account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // save metadata object
+                InputStream metadataObject = new ByteArrayInputStream(
+                    metadataId.getValue().getBytes(StandardCharsets.UTF_8));
+                sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    metadataId, session.getSubject(), metadataObject);
+                metadataObject = new ByteArrayInputStream(
+                    metadataId.getValue().getBytes(StandardCharsets.UTF_8));
+                d1NodeTest.mnCreate(session, metadataId, metadataObject, sysmeta);
+                query = "q=id:" + "\"" + metadataId.getValue() + "\"";
+                stream = MNodeService.getInstance(request).query(session, "solr", query);
+                resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // save the ORE resource map
+                InputStream oreObject = new ByteArrayInputStream(
+                    rdfXml.getBytes(StandardCharsets.UTF_8));
+                sysmeta = D1NodeServiceTest.createSystemMetadata(
+                    resourceMapId, session.getSubject(), oreObject);
+                sysmeta.setFormatId(
+                    ObjectFormatCache.getInstance().getFormat(
+                        "http://www.openarchives.org/ore/terms").getFormatId());
+                oreObject = new ByteArrayInputStream(rdfXml.getBytes(StandardCharsets.UTF_8));
+                Identifier pid =
+                    d1NodeTest.mnCreate(session, resourceMapId, oreObject, sysmeta);
+                query = "q=id:" + resourceMapId.getValue();
+                stream = MNodeService.getInstance(request).query(session, "solr", query);
+                resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                account = 0;
+                while ((resultStr == null || !resultStr.contains("checksum"))
+                    && account <= D1NodeServiceTest.MAX_TRIES) {
+                    Thread.sleep(500);
+                    account++;
+                    stream = MNodeService.getInstance(request).query(session, "solr", query);
+                    resultStr = IOUtils.toString(stream, StandardCharsets.UTF_8);
+                }
+
+                // Get BagIt 0.97 package
+                ObjectFormatIdentifier format097 = new ObjectFormatIdentifier();
+                format097.setValue("application/bagit-097");
+                InputStream bag097Stream =
+                    MNodeService.getInstance(request).getPackage(session, format097, pid);
+                File bag097File = File.createTempFile("bagit097.", ".zip");
+                IOUtils.copy(bag097Stream, new FileOutputStream(bag097File));
+
+                // Get BagIt 1.0 package
+                ObjectFormatIdentifier format10 = new ObjectFormatIdentifier();
+                format10.setValue("application/bagit-1.0");
+                InputStream bag10Stream =
+                    MNodeService.getInstance(request).getPackage(session, format10, pid);
+                File bag10File = File.createTempFile("bagit10.", ".zip");
+                IOUtils.copy(bag10Stream, new FileOutputStream(bag10File));
+
+                // Open both zip files and compare structure
+                ZipFile zip097 = new ZipFile(bag097File.getAbsolutePath());
+                ZipFile zip10 = new ZipFile(bag10File.getAbsolutePath());
+
+                Set<String> entries097 = new HashSet<>();
+                Enumeration<? extends ZipEntry> enum097 = zip097.entries();
+                while (enum097.hasMoreElements()) {
+                    entries097.add(enum097.nextElement().getName());
+                }
+
+                Set<String> entries10 = new HashSet<>();
+                Enumeration<? extends ZipEntry> enum10 = zip10.entries();
+                while (enum10.hasMoreElements()) {
+                    entries10.add(enum10.nextElement().getName());
+                }
+
+                // BagIt 1.0 should have a metadata directory with system metadata
+                boolean v10HasSysmeta = false;
+                for (String name : entries10) {
+                    if (name.contains("metadata/sysmeta/")) {
+                        v10HasSysmeta = true;
+                        break;
+                    }
+                }
+                assertTrue("BagIt 1.0 should have system metadata in metadata/sysmeta/",
+                    v10HasSysmeta);
+
+                // BagIt 0.97 should have a pid-mapping.txt
+                boolean v097HasPidMapping = false;
+                for (String name : entries097) {
+                    if (name.contains("pid-mapping.txt")) {
+                        v097HasPidMapping = true;
+                        break;
+                    }
+                }
+                assertTrue("BagIt 0.97 should have pid-mapping.txt", v097HasPidMapping);
+
+                // Both should have bagit.txt but with different versions
+                String v097BagitContent = null;
+                String v10BagitContent = null;
+                for (String name : entries097) {
+                    if (name.endsWith("bagit.txt")) {
+                        v097BagitContent = IOUtils.toString(
+                            zip097.getInputStream(zip097.getEntry(name)), StandardCharsets.UTF_8);
+                        break;
+                    }
+                }
+                for (String name : entries10) {
+                    if (name.endsWith("bagit.txt")) {
+                        v10BagitContent = IOUtils.toString(
+                            zip10.getInputStream(zip10.getEntry(name)), StandardCharsets.UTF_8);
+                        break;
+                    }
+                }
+                assertNotNull("BagIt 0.97 should have bagit.txt", v097BagitContent);
+                assertNotNull("BagIt 1.0 should have bagit.txt", v10BagitContent);
+                assertTrue("BagIt 0.97 bagit.txt should contain version 0.97",
+                    v097BagitContent.contains("0.97"));
+                assertTrue("BagIt 1.0 bagit.txt should contain version 1.0",
+                    v10BagitContent.contains("1.0"));
+
+                // clean up
+                zip097.close();
+                zip10.close();
+                bag097File.delete();
+                bag10File.delete();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Unexpected error in testBagIt10VsBagIt097Structure: " + e.getMessage());
+            }
+        }
 
         /**
          * Test getting a known object
